@@ -28,6 +28,7 @@ import argparse
 import calendar
 import datetime
 import json
+import logging
 import requests
 import settings
 import sqlalchemy
@@ -58,17 +59,22 @@ Base.metadata.create_all(engine)
 
 parser = argparse.ArgumentParser()
 parser.add_argument("-v", "--verbose", action="store_true")
+parser.add_argument("-vv", dest='verbose_debug', action="store_true")
 
-VERBOSE = parser.parse_args().verbose
-if VERBOSE:
-    print 'Running in verbose mode'
+args = parser.parse_args()
+
+# Set the logging level.
+logging.basicConfig()
+logger = logging.getLogger(__name__)
+if args.verbose_debug:
+    logger.setLevel(logging.DEBUG)
+    logger.debug('Running in DEBUG logging mode')
+elif args.verbose:
+    logger.setLevel(logging.INFO)
+    logger.info('Running in INFO logging mode')
 
 ################################################################################
 # Utilities
-
-def verbose_print(string):
-    if VERBOSE:
-        print string
 
 def convert_date(old_timestamp):
     '''
@@ -132,17 +138,15 @@ def add_task(session, id, name, task_type, date_created, date_completed, tags):
             if tag != None:
                 try:
                     task.tags.append(find_or_add_tag(session, tag.id, tag.name))
-                    verbose_print(("Added tag", tag))
+                    logger.debug('Added tag %s' % tag)
                 except:
-                    traceback.print_exc(file=sys.stderr)
-                    print >> sys.stderr, "Failed to add tag", tag
+                    logger.exception('Failed to add tag %s' % tag)
 
         session.commit()
-        verbose_print((output, task.name))
+        logger.debug('%s, %s' % (output, task.name))
         return task
     except:
-        traceback.print_exc(file=sys.stderr)
-        print >> sys.stderr, " "
+        logger.exception()
 
 def add_history(session, date_created, task_id, value):
     try:
@@ -171,13 +175,11 @@ def add_history(session, date_created, task_id, value):
             output = "    New History Created:"
         else:
             output = "    History already exists:"
-        verbose_print((output, history)) 
+        logger.debug('%s %s' % (output, history))
         session.commit()
         return history
     except:
-        print >> sys.stderr, "Failed to add History"
-        traceback.print_exc(file=sys.stderr)
-        print >> sys.stderr, " "
+        logger.exception('Failed to add History')
 
 def add_checklist_item(session, name, completed, history_id):
     try:
@@ -193,21 +195,19 @@ def add_checklist_item(session, name, completed, history_id):
         else:
             output = "    ChecklistItem already exists"
         session.commit()
-        verbose_print((output, checklist_item))
+        logger.debug('%s %s' % (output, checklist_item))
         return checklist_item
     except:
-        print >> sys.stderr, "Error while adding checklist"
-        traceback.print_exc(file=sys.stderr)
-        print >> sys.stderr, " "
+        logger.exception('Error while adding checklist')
 
 def process_task(session, task):
     try:
         # Warning: Tasks with old, deleted tags will not retain data
-        # about those tagstag
+        # about those tags
         tags = [session.query(Tag).filter_by(id=x).first()
                 for x in task['tags']]
 
-        verbose_print(json.dumps(task, sort_keys=True,indent=4))
+        logger.debug(json.dumps(task, sort_keys=True,indent=4))
 
         # Todo tasks have a "date_completed" attribute, others do not
         try:
@@ -215,13 +215,13 @@ def process_task(session, task):
         except:
             date_completed = None
 
-        add_task(session,
-            id=task['id'],
-            name=task['text'],
-            task_type=task['type'],
-            date_created=convert_date(task['createdAt']),
-            date_completed=date_completed,
-            tags=tags)
+        task_row = add_task(session,
+                            id=task['id'],
+                            name=task['text'],
+                            task_type=task['type'],
+                            date_created=convert_date(task['createdAt']),
+                            date_completed=date_completed,
+                            tags=tags)
 
         # By default, it creates one history item with today's date.
         # If the task has at least one history of it's own, instead it
@@ -236,7 +236,6 @@ def process_task(session, task):
                 histories = task['history']
         except:
             pass
-
 
         for history in histories:
             new_history = add_history(
@@ -256,10 +255,10 @@ def process_task(session, task):
                         )
             except:
                 pass
-            verbose_print("")
+
+        return task_row
     except:
-        traceback.print_exc(file=sys.stderr)
-        print >> sys.stderr, " "
+        logger.exception()
 
 ################################################################################
 # Main
@@ -270,9 +269,12 @@ def store_latest():
 
     # Make sure the user is proper json.
     try:
-        json.dumps(hrpg.user())
+        logger.debug(json.dumps(hrpg.user()))
     except TypeError:
-        print >> sys.stderr, "User profile is not valid JSON, giving up."
+        logger.exception('User profile is not valid JSON, giving up.')
+        sys.exit(1)
+    except:
+        logger.exception('Error retrieving user profile on load, giving up.')
         sys.exit(1)
 
     # Gentlemen, start your sql engines.
@@ -280,47 +282,52 @@ def store_latest():
     session = Session()
 
     # Dump out a bunch of aggregate diagnostic information.
-    if VERBOSE:
-        print "DATABASE, BEFORE:"
-        print "tag count:", session.query(Tag).count()
-        print "task count:", session.query(Task).count()
-        print "history count:", session.query(History).count()
-        print "checklist_item count:", session.query(ChecklistItem).count()
+    logger.info("DATABASE, BEFORE:")
+    logger.info("tag count: %s" % session.query(Tag).count())
+    logger.info("task count: %s" % session.query(Task).count())
+    logger.info("history count: %s" % session.query(History).count())
+    logger.info("checklist_item count: %s" % session.query(ChecklistItem).count())
 
     # Add new tags and tasks if necessary.
-    verbose_print("----                 Checking Tags                     ----")
+    logger.info("----                 Checking Tags                     ----")
     for tag in hrpg.user()['data']['tags']:
-        verbose_print(find_or_add_tag(session, id=tag['id'], name=tag['name']))
+        logger.info(find_or_add_tag(session, id=tag['id'], name=tag['name']))
 
-    verbose_print("----                 Checking Tasks                    ----")
+    logger.info("----                 Checking Tasks                    ----")
     for task in hrpg.tasks()['data']:
-        verbose_print(process_task(session, task))
+        logger.info(process_task(session, task))
 
     # Check separately for completed tasks.
-    verbose_print("----             Checking Completed Tasks              ----")
+    logger.info("----             Checking Completed Tasks              ----")
     for task in hrpg.completed_tasks()['data']:
-        verbose_print(process_task(session, task))
+        logger.info(process_task(session, task))
 
     # Dump out specific diagnostic information.
-    if VERBOSE:
-        print "---------------------TAGS IN DATABASE---------------------"
+    if args.verbose_debug:
+        logger.debug("---------------------TAGS IN DATABASE---------------------")
         for item in session.query(Tag).all():
-            print item
-        print "---------------------TASKS IN DATABASE--------------------"
+            logger.debug(item)
+        logger.debug("---------------------TASKS IN DATABASE--------------------")
         for task in session.query(Task).all():
-            print task
+            logger.debug(task)
             for history in session.query(History).filter_by(task_id=task.id).all():
-                print "    ", history
+                logger.debug("    %s" % history)
                 for checklist_item in session.query(ChecklistItem).filter_by(history_id=history.id).all():
-                    print "        ", checklist_item
+                    logger.debug("        %s" % checklist_item)
 
     # Dump out a bunch more aggregate diagnostic information.
-    if VERBOSE:
-        print "DATABASE, AFTER:"
-        print "tag count:", session.query(Tag).count()
-        print "task count:", session.query(Task).count()
-        print "history count:", session.query(History).count()
-        print "checklist_item count:", session.query(ChecklistItem).count()
+    logger.info("DATABASE, AFTER:")
+    logger.info("tag count: %s" % session.query(Tag).count())
+    logger.info("task count: %s" % session.query(Task).count())
+    logger.info("history count: %s" % session.query(History).count())
+    logger.info("checklist_item count: %s" % session.query(ChecklistItem).count())
+
+    # Basic data integrity checks.
+    if session.query(Task).count() == 0:
+        logger.warning('Unexpected, no tasks present')
+    check_start = time.time() - 3600 * 24 * 3
+    if session.query(History).filter(History.date_created > check_start).count() == 0:
+        logger.warning('Unexpected, no activity in the last 3 days')
 
     session.close()
 
