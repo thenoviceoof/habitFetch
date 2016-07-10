@@ -1,6 +1,10 @@
 import requests
 
 class HabitApi(object):
+    '''
+    Fetch information HabitRPG.
+    '''
+
     DIRECTION_UP = "up"
     DIRECTION_DOWN = "down"
 
@@ -21,39 +25,42 @@ class HabitApi(object):
         }
 
     def request(self, method, path, *args, **kwargs):
-        path = "%s/%s" % ("api/v1", path) if not path.startswith("/") else path[1:]
+        '''Make a request to the API'''
+        path = ("%s/%s" % ("api/v3", path)
+                if not path.startswith("/") else
+                path[1:])
 
+        # Allow overriding headers, but default to using the given
+        # authentication headers.
         if not "headers" in kwargs:
             kwargs["headers"] = self.auth_headers()
 
+        # Call appropriate requests method using runtime hackery.
         return getattr(requests, method)(self.base_url + path, *args, **kwargs)
 
     def user(self):
+        '''
+        Get the authenticated user's profile.
+        '''
         return self.request("get", "user").json()
 
     def tasks(self):
-        return self.request("get", "user/tasks").json()
+        '''
+        Get the tasks associated with the current user.
+        '''
+        return self.request("get", "tasks/user").json()
+
+    def completed_tasks(self):
+        '''
+        Get the completed tasks associated with the current user.
+        '''
+        parameters = {
+            'type': 'completedTodos'
+        }
+        return self.request("get", "tasks/user", params=parameters).json()
 
     def task(self, task_id):
-        return self.request("get", "user/task/%s" % task_id).json()
-
-    def create_task(self, task_type, text, completed = False, value = 0, note = ""):
-        data = {
-            'type': task_type,
-            'text': text,
-            'completed': completed,
-            'value': value,
-            'note': note
-        }
-
-        return self.request("post", "user/task/%s" % task_id, data=data).json()
-
-    def update_task(self, task_id, text):
-        return self.request("put", "user/task/%s" % task_id, data=text).json()
-
-    def perform_task(self, task_id, direction):
-        url = "/v1/users/%s/tasks/%s/%s" % (self.user_id, task_id, direction)
-        data = json.dumps({'apiToken': self.api_key})
-        headers={'Content-Type': 'application/json'}
-
-        return self.request("post", url, data=data, headers=headers).json()
+        '''
+        Get the information for a specific task.
+        '''
+        return self.request("get", "tasks/%s" % task_id).json()
