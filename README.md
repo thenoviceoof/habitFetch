@@ -10,9 +10,15 @@ To use this script, set up a crontab or other automated tool that can run a pyth
 
 1) > cd HabitFetch
 
-2) Edit the settings.py file to include your habitRPG user_id and api_key. (Find these in the API section of the habitRPG website, after logging in)
+2) > virtualenv . # optional
 
-3) > python habitFetch.py
+3) > pip install -r requirements.txt # optional, if you already have the packages
+
+4) Edit the settings.py file to include your habitRPG user_id and
+api_key. (Find these in the API section of the habitRPG website, after
+logging in)
+
+5) > python habitFetch.py
 
 ##License##
 
