@@ -2,6 +2,11 @@
 settings.py
 .DS_Store
 habitRPG_data.sql
+*.db
 habitfetch.sublime-workspace
 habitfetch.sublime-project
-venv
+
+bin/
+include/
+lib/
+local/
