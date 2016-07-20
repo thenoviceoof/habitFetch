@@ -267,6 +267,13 @@ def store_latest():
     hrpg = HabitApi(user_id = settings.user_id,
                     api_key = settings.api_key)
 
+    # Make sure the service is healthy.
+    status = hrpg.status()
+    if status.get('data', {}).get('status') != 'up':
+        logger.error('API is not healthy, status is not up')
+        logger.error(json.dumps(status))
+        sys.exit(3)
+
     # Make sure the user is proper json.
     try:
         logger.debug(json.dumps(hrpg.user()))

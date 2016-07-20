@@ -38,6 +38,12 @@ class HabitApi(object):
         # Call appropriate requests method using runtime hackery.
         return getattr(requests, method)(self.base_url + path, *args, **kwargs)
 
+    def status(self):
+        '''
+        Get the status of the Habatica API.
+        '''
+        return self.request('get', 'status').json()
+
     def user(self):
         '''
         Get the authenticated user's profile.
