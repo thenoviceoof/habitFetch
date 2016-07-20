@@ -13,7 +13,7 @@ class HabitApi(object):
     TYPE_TODO = "todo"
     TYPE_REWARD = "reward"
 
-    def __init__(self, user_id, api_key, base_url = "https://habitrpg.com/"):
+    def __init__(self, user_id, api_key, base_url = "https://habatica.com/"):
         self.user_id = user_id
         self.api_key = api_key
         self.base_url = base_url
