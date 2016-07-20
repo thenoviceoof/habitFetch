@@ -282,7 +282,7 @@ def store_latest():
         sys.exit(1)
     except:
         logger.exception('Error retrieving user profile on load, giving up.')
-        sys.exit(1)
+        sys.exit(2)
 
     # Gentlemen, start your sql engines.
     Session = sessionmaker(bind=engine)
